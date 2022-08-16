@@ -1,4 +1,4 @@
-# API of felisdb.js
+# API of felisdb
 
 ## Export Classes
 - [FelisDB](./src.md#FelisDB)

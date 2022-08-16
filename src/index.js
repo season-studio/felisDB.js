@@ -727,7 +727,11 @@ class FelisDB {
      */
     constructor(_name, _opt) {
         _opt || (_opt = {});
-        this.#openPromise = new Promise((_resolve, _reject) => {
+        this.#openPromise = this.#openDBInPromise(_name, _opt);
+    }
+
+    #openDBInPromise(_name, _opt) {
+        return new Promise((_resolve, _reject) => {
             let dbRequest = indexedDB.open(_name, _opt.version);
             dbRequest.onupgradeneeded = (e) => {
                 let db = e.target.result;
@@ -762,7 +766,7 @@ class FelisDB {
                         }
                     }
                 }
-                _resolve(db);
+                _resolve(this.#openDBInPromise(_name, _opt));
             };
             dbRequest.onsuccess = (e) => {
                 _resolve(e.target.result);
@@ -774,7 +778,6 @@ class FelisDB {
                 _reject(FelisDBError(1, e.target && e.target.error));
             }
         });
-        
     }
 
     /**
