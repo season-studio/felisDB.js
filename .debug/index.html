@@ -1,0 +1,236 @@
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=0" />
+    <title>FelisDB.js Demo</title>
+    <style>
+        html {
+            font-size: 100px;
+        }
+        header {
+            padding: 0.06rem;
+            background-color: #185ABD;
+            color: #fff;
+            font-size: 0.17rem;
+            font-weight: bolder;
+            z-index: 100;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            flex-direction: row;
+            justify-content: flex-start;
+            justify-items: flex-start;
+        }
+        header > span > span {
+            font-weight: 400;
+        }
+        header > div {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            justify-content: end;
+        }
+        header > div img {
+            height: 0.2rem;
+        }
+        .main {
+            box-sizing: border-box;
+            position: relative;
+            font-size: 0.15rem;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            padding: 0.4rem 3px 3px 3px;
+            height: 100%;
+            width: 100%;
+        }
+        .panel {
+            box-sizing: border-box;
+            border: 1px solid #000;
+            padding: 0.03rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            justify-items: flex-start;
+        }
+        @media screen and (orientation: landscape) {
+            .panel {
+                width: 50%;
+            }
+        }
+        @media screen and (orientation: portrait) {
+            .panel {
+                width: 100%;
+            }
+        }
+        .source {
+            border: none;
+        }
+        .result {
+            overflow: auto;
+        }
+        .grayline {
+            background-color: #ccc;
+        }
+        .errorline {
+            color: #f00;
+        }
+        .warnline {
+            color: #770;
+        }
+        .traceline {
+            color: #170;
+        }
+        .infoline {
+            color: #13a;
+        }
+        .source > p {
+            box-sizing: border-box;
+            margin: 0;
+            padding-bottom: 0.03rem;
+            height: 0.26rem;
+        }
+        #source {
+            font-family: 'Courier New', monospace;
+            width: 100%;
+            box-sizing: border-box;
+            resize: none;
+            outline: none;
+            flex: 1;
+        }
+    </style>
+    <script type="text/javascript" src="../.dist/index.js"></script>
+    <script type="text/javascript">
+
+        var CodeMap = {
+            normal: `
+var db = new FelisDB("TestDB", {
+    version: 1,
+    stores: {
+        Table2: null,
+        Table3: ["id", "name"],
+        Table4: {
+            keyPath: ["id", "name"],
+            indexs: {
+                abc: {
+                    keyPath: "id"
+                }
+            }
+        }
+    },
+    removeStores: ["Table1"]
+});
+var sa = db.accessStore("Table2", "rw");
+sa.put("Hello", 1).put("World", 2).put("Test", 3).put("Demo", 3);
+sa.forEach(function(v, k) {
+    console.log(k, "->", v);
+})
+sa.query\`* where \${FelisDB.range\`>=\${2}\`}\ do \${function (r) { console.log(r); }}\`;
+sa.lastResult().then(function () {
+    sa = db.accessStore("Table4", "rw");
+    sa.put({id:"1", name:"Jack"}).put({id:"2", name:"Jon"}).put({id:"3", name:"Joe"}).put({id:"4", name:"Jason"});
+    sa.count().lastResult().then(console.log);
+});
+`,
+        query: `
+var db = new FelisDB("TestDB");
+var sa = db.accessStore("Table4", "rw");
+sa.query\`* do \${function(r) {console.log("query1:", r)}}\`;
+sa.query\`* in index abc where \${FelisDB.range\`>=\${"2"}\`} desc do \${function(r) {console.log("query2:", r)}}\`;
+sa.query\`first in index abc where \${function(r) { return r.name.length === 3; }} do \${function(r) {console.log("query3:", r)}}\`;
+sa.query\`count in index abc where \${FelisDB.range\`>=\${"2"}\`} do \${function(r) {console.log("query4:", r)}}\`;
+`
+        };
+
+        function outputFn() {
+            var block;
+            var index;
+            var parentNode = document.getElementById("result");
+            for (index = 0; index < arguments.length; index++) {
+                var data = arguments[index];
+                if (data && (typeof data === "object")) {
+                    block && parentNode.appendChild(block);
+                    block = document.createElement("code");
+                    block.setAttribute("class", this);
+                    block.textContent = JSON.stringify(data);
+                    parentNode.appendChild(block);
+                    block = undefined;
+                } else {
+                    if (!block) {
+                        block = document.createElement("code");
+                        block.setAttribute("class", this);
+                        block.textContent = "";
+                    }
+                    if (typeof data === "function") {
+                        block.textContent += "function [" + String(data) + "] "; 
+                    } else {
+                        block.textContent += String(data) + " "; 
+                    }
+                }
+            }
+            block && parentNode.appendChild(block);
+        }
+
+        var hookConsole = Object.assign({}, console, {
+            log: outputFn.bind(""),
+            info: outputFn.bind("infoline"),
+            trace: outputFn.bind("traceline"),
+            error: outputFn.bind("errorline"),
+            warn: outputFn.bind("warnline")
+        });
+
+        function onSelect() {
+            var codeItem = document.getElementById("code-item");
+            var codeSnippet = CodeMap[codeItem && codeItem.value];
+            codeSnippet && (document.getElementById("source").value = codeSnippet.trim());
+        }
+
+        function onRun() {
+            var resultPanel = document.getElementById("result");
+            resultPanel.innerHTML = "";
+            outputFn.call("grayline", "Result:");
+            var fn = new Function("console", document.getElementById("source").value);
+            fn(hookConsole);
+        }
+
+        function initDemo() {
+            window.addEventListener("error", function (e) {
+                outputFn.call("errorline", `${e.message}\nsrc: ${e.filename||"VM"}(${e.lineno}:${e.colno})`);
+            });
+            onSelect();
+        }
+
+        document.addEventListener("readystatechange", function() {
+            (document.readyState === "complete") && initDemo();
+        });
+    </script>
+</head>
+<body>
+    <header>
+        <span>FelisDB&nbsp;Demo
+            <span>&nbsp;--&nbsp;felisdb.js</span>
+        </span>
+        <div>
+            <a href="https://www.npmjs.com/package/felisdb"><img src="./npm.png" /></a>&nbsp;
+            <a href="https://github.com/season-studio/felisDB.js"><img src="./github.png" /></a>
+        </div>
+    </header>
+    <div class="main">
+        <div class="panel source">
+            <p>
+                Test&nbsp;Code:
+                <select name="code-item" id="code-item" oninput="onSelect()">
+                    <option value="normal">Normal</option>
+                    <option value="query">Query</option>
+                </select>
+                <input type="button" value="Run" onclick="onRun()" />
+            </p>
+            <textarea id="source" wrap="off"></textarea>
+        </div>
+        <div class="panel result" id="result">
+            <code class="grayline">Result:</code>
+        </div>
+    </div>
+</body>
+</html>
